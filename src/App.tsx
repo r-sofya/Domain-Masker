@@ -8,7 +8,9 @@ function App() {
   const [generatedCode, setGeneratedCode] = useState('')
   const [isCopied, setIsCopied] = useState(false)
   const [isWebflowCopied, setIsWebflowCopied] = useState(false)
-  const [urlError, setUrlError] = useState('')
+  const [targetUrlError, setTargetUrlError] = useState('')
+  const [outputUrlError, setOutputUrlError] = useState('')
+  const [activeTab, setActiveTab] = useState<'url' | 'super'>('url')
 
   const webflowFormDisablerCode = `<!-- Webflow Form Disabler -->
 <script>
@@ -123,34 +125,49 @@ function App() {
   });
 </script>`;
 
-  const validateAndEnforceHttps = (url: string) => {
-    let finalUrl = url;
-    if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
-      finalUrl = 'https://' + finalUrl;
-    }
-
+  const validateAndEnforceHttps = (url: string, setError: (msg: string) => void) => {
     try {
-      new URL(finalUrl);
-      setUrlError('');
-      return finalUrl;
+      new URL(url);
+      setError('');
+      return url;
     } catch {
-      setUrlError('Please enter a valid URL');
-      return '';
+      setError('Please enter a valid URL');
+      return url;
     }
   };
 
   const handleTargetUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const validated = validateAndEnforceHttps(e.target.value);
-    setTargetUrl(validated);
+    const validated = validateAndEnforceHttps(e.target.value, setTargetUrlError);
+    setTargetUrl(e.target.value);
   };
 
   const handleOutputUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const validated = validateAndEnforceHttps(e.target.value);
-    setOutputUrl(validated);
+    const validated = validateAndEnforceHttps(e.target.value, setOutputUrlError);
+    setOutputUrl(e.target.value);
+  };
+
+  const clearAll = () => {
+    setTargetUrl('');
+    setOutputUrl('');
+    setTargetUrlError('');
+    setOutputUrlError('');
+    setGeneratedCode('');
+    setActiveTab('url');
   };
 
   useEffect(() => {
-    if (!targetUrl || !outputUrl || urlError) {
+    let finalTargetUrl = targetUrl;
+    let finalOutputUrl = outputUrl;
+
+    if (targetUrl && !targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+      finalTargetUrl = 'https://' + targetUrl;
+    }
+
+    if (outputUrl && !outputUrl.startsWith('http://') && !outputUrl.startsWith('https://')) {
+      finalOutputUrl = 'https://' + outputUrl;
+    }
+
+    if (!targetUrl || !outputUrl || targetUrlError || outputUrlError) {
       setGeneratedCode('');
       return;
     }
@@ -204,7 +221,7 @@ function App() {
 };`;
 
     setGeneratedCode(codeSnippet);
-  }, [targetUrl, outputUrl, urlError]);
+  }, [targetUrl, outputUrl, targetUrlError, outputUrlError]);
 
   const onCopy = () => {
     setIsCopied(true);
@@ -216,76 +233,109 @@ function App() {
     setTimeout(() => setIsWebflowCopied(false), 2000);
   };
 
+  const copyButtonText = (targetUrl && outputUrl) ? 'Copy Code' : 'Insert URLs';
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-100 to-purple-200 flex flex-col items-center justify-center p-8">
       <div className="bg-white p-10 rounded-xl shadow-xl w-full max-w-lg space-y-6">
         <div className="text-center">
           <Globe className="mx-auto h-12 w-12 text-blue-500" />
-          <h2 className="mt-2 text-3xl font-bold text-gray-800">Enter URLs</h2>
-          <p className="mt-1 text-gray-500">Type in your target and output URLs below.</p>
+          <h2 className="mt-2 text-3xl font-bold text-gray-800">AI Web Toolkit</h2>
+          <p className="mt-1 text-gray-500">Generate code or copy useful Webflow utilities.</p>
         </div>
 
-        <div className="space-y-4">
-          <div>
-            <label htmlFor="targetUrl" className="block text-gray-700 text-sm font-bold mb-2">
-              Target URL:
-            </label>
-            <input
-              type="url"
-              id="targetUrl"
-              className={`w-full px-4 py-3 rounded-md border ${urlError ? 'border-red-500' : 'border-gray-300'} focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              placeholder="target.com"
-              value={targetUrl}
-              onChange={handleTargetUrlChange}
-            />
-          </div>
-          <div>
-            <label htmlFor="outputUrl" className="block text-gray-700 text-sm font-bold mb-2">
-              Output URL:
-            </label>
-            <input
-              type="url"
-              id="outputUrl"
-              className={`w-full px-4 py-3 rounded-md border ${urlError ? 'border-red-500' : 'border-gray-300'} focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              placeholder="output.com"
-              value={outputUrl}
-              onChange={handleOutputUrlChange}
-            />
-          </div>
-          {urlError && <p className="text-red-500 text-sm italic">{urlError}</p>}
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+            <button
+              onClick={() => setActiveTab('url')}
+              className={`${activeTab === 'url' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            >
+              URL Tools
+            </button>
+            <button
+              onClick={() => setActiveTab('super')}
+              className={`${activeTab === 'super' ? 'border-purple-500 text-purple-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            >
+              Super Powers
+            </button>
+          </nav>
         </div>
 
-        {(targetUrl && outputUrl && !urlError) && (
+        {activeTab === 'url' && (
           <>
-            <div className="mt-6 p-4 bg-gray-50 rounded-md border border-gray-200 space-y-2 relative">
-              <CopyToClipboard text={generatedCode} onCopy={onCopy}>
-                <button className="absolute top-2 right-2 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm flex items-center">
-                  <Copy className="h-4 w-4 mr-2" />
-                  {isCopied ? 'Copied!' : 'Copy Code'}
-                </button>
-              </CopyToClipboard>
-              <pre className="bg-gray-100 p-4 rounded-md overflow-x-auto max-h-48">
-                <code>{generatedCode}</code>
-              </pre>
+            <div className="space-y-2">
+              <div className="flex space-x-2">
+                <div className="w-1/2">
+                  <label htmlFor="targetUrl" className="block text-gray-700 text-sm font-bold mb-1">
+                    Target URL:
+                  </label>
+                  <input
+                    type="url"
+                    id="targetUrl"
+                    className={`w-full px-3 py-2 rounded-md border ${targetUrlError ? 'border-red-500' : 'border-gray-300'} focus:ring-2 focus:ring-blue-500 focus:outline-none`}
+                    placeholder="target.com"
+                    value={targetUrl}
+                    onChange={handleTargetUrlChange}
+                  />
+                  {targetUrlError && <p className="text-red-500 text-xs italic mt-1">{targetUrlError}</p>}
+                </div>
+                <div className="w-1/2">
+                  <label htmlFor="outputUrl" className="block text-gray-700 text-sm font-bold mb-1">
+                    Output URL:
+                  </label>
+                  <input
+                    type="url"
+                    id="outputUrl"
+                    className={`w-full px-3 py-2 rounded-md border ${outputUrlError ? 'border-red-500' : 'border-gray-300'} focus:ring-2 focus:ring-blue-500 focus:outline-none`}
+                    placeholder="output.com"
+                    value={outputUrl}
+                    onChange={handleOutputUrlChange}
+                  />
+                  {outputUrlError && <p className="text-red-500 text-xs italic mt-1">{outputUrlError}</p>}
+                </div>
+              </div>
             </div>
 
-            <div className="mt-4 flex space-x-4">
-              <CopyToClipboard text={generatedCode} onCopy={onCopy}>
-                <button className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm flex items-center">
-                  <Copy className="h-4 w-4 mr-2" />
-                  {isCopied ? 'Copied!' : 'Copy Code'}
+            {(targetUrl || outputUrl) ? (
+              <div className="mt-4 flex justify-center">
+                <CopyToClipboard text={generatedCode} onCopy={() => { }}>
+                  <button
+                    className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm flex items-center"
+                    disabled={!targetUrl || !outputUrl}
+                  >
+                    <Copy className="h-4 w-4 mr-2" />
+                    {isCopied ? 'Copied!' : copyButtonText}
+                  </button>
+                </CopyToClipboard>
+              </div>
+            ) : (
+              <div className="mt-4 flex justify-center">
+                <button
+                  className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded text-sm flex items-center"
+                >
+                  Insert URLs
                 </button>
-              </CopyToClipboard>
+              </div>
+            )}
+          </>
+        )}
+
+        {activeTab === 'super' && (
+          <>
+            <div className="mt-4">
               <CopyToClipboard text={webflowFormDisablerCode} onCopy={onWebflowCopy}>
                 <button className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded text-sm flex items-center">
                   <Copy className="h-4 w-4 mr-2" />
                   {isWebflowCopied ? 'Copied!' : 'Disable Webflow Forms'}
                 </button>
               </CopyToClipboard>
+              <p className="text-gray-500 text-sm mt-2">
+                Paste this code before the <code>{'</body>'}</code> tag on your Webflow site.
+              </p>
             </div>
-            <p className="text-gray-500 text-sm mt-2">
-              Paste this code before the <code>{'</body>'}</code> tag.
-            </p>
+            <div className="mt-6">
+              <p className="text-sm text-gray-400 italic">More tools coming soon...</p>
+            </div>
           </>
         )}
       </div>
