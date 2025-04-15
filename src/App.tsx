@@ -125,26 +125,60 @@ function App() {
   });
 </script>`;
 
-  const validateAndEnforceHttps = (url: string, setError: (msg: string) => void) => {
+  const isValidUrl = (url: string) => {
     try {
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        return isValidUrl('https://' + url)
+      }
       new URL(url);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  const validateAndEnforceHttps = async (url: string, setError: (msg: string) => void) => {
+    if (!url) {
+      setError('');
+      return '';
+    }
+
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
       setError('');
       return url;
-    } catch {
+    }
+
+    if (!isValidUrl(url)) {
       setError('Please enter a valid URL');
+      return url;
+    }
+
+    try {
+      const response = await fetch(url, { mode: 'no-cors' });
+      if (response.status !== 404) {
+        setError('');
+        return url;
+      } else {
+        setError('URL not found');
+        return url;
+      }
+    } catch (error) {
+      setError('URL is not reachable');
       return url;
     }
   };
 
+
   const handleTargetUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const validated = validateAndEnforceHttps(e.target.value, setTargetUrlError);
-    setTargetUrl(e.target.value);
+    validated.then(setTargetUrl)
   };
 
   const handleOutputUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const validated = validateAndEnforceHttps(e.target.value, setOutputUrlError);
-    setOutputUrl(e.target.value);
+    validated.then(setOutputUrl)
   };
+
 
   const clearAll = () => {
     setTargetUrl('');
@@ -172,13 +206,16 @@ function App() {
       return;
     }
 
+    const targetProtocol = targetUrl.startsWith('http://') ? 'http://' : 'https://';
+    const outputProtocol = outputUrl.startsWith('http://') ? 'http://' : 'https://';
+
     const codeSnippet = `export default {
   async fetch(request, env, ctx) {
     try {
       const url = new URL(request.url);
       const path = url.pathname === '/' ? '' : url.pathname;
 
-      const canonicalDomain = '${outputUrl}';
+      const canonicalDomain = '${outputProtocol}${outputUrl}';
 
       if (url.hostname.includes('webflow.io')) {
         return Response.redirect(\`\${canonicalDomain}\${path}\`, 301);
@@ -190,7 +227,7 @@ function App() {
         });
       }
 
-      const targetUrl = \`${targetUrl}\${path}\`;
+      const targetUrl = \`${targetProtocol}${targetUrl}\${path}\`;
       const response = await fetch(targetUrl, {
         headers: request.headers
       });
@@ -233,7 +270,7 @@ function App() {
     setTimeout(() => setIsWebflowCopied(false), 2000);
   };
 
-  const copyButtonText = (targetUrl && outputUrl) ? 'Copy Code' : 'Insert URLs';
+  const copyButtonText = (!targetUrl || !outputUrl || targetUrlError || outputUrlError) ? 'Insert URLs' : 'Copy Code';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-100 to-purple-200 flex flex-col items-center justify-center p-8">
@@ -301,7 +338,7 @@ function App() {
                 <CopyToClipboard text={generatedCode} onCopy={() => { }}>
                   <button
                     className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm flex items-center"
-                    disabled={!targetUrl || !outputUrl}
+                    disabled={!targetUrl || !outputUrl || targetUrlError || outputUrlError}
                   >
                     <Copy className="h-4 w-4 mr-2" />
                     {isCopied ? 'Copied!' : copyButtonText}
